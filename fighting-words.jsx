@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { Analytics } from "@vercel/analytics/react";
 
 // ── FIGHTING WORDS DATA ──────────────────────────────────────
 const SCRIPTURES = [
@@ -307,6 +308,7 @@ function DotIndicator({ total, current }) {
 
 // ── MAIN APP ─────────────────────────────────────────────────
 export default function FightingWords() {
+  Analytics
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollRef = useRef(null);
   const [cardWidth, setCardWidth] = useState(340);
@@ -391,7 +393,7 @@ export default function FightingWords() {
               color: "#ffffff88",
             }}
           >
-            Our Church Community
+            National Community Church Family
           </span>
         </div>
         <h1
