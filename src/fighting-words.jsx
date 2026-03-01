@@ -308,7 +308,7 @@ function DotIndicator({ total, current }) {
 
 // ── MAIN APP ─────────────────────────────────────────────────
 export default function FightingWords() {
-  Analytics
+  Analytics;
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollRef = useRef(null);
   const [cardWidth, setCardWidth] = useState(340);
@@ -472,3 +472,4 @@ export default function FightingWords() {
     </div>
   );
 }
+
