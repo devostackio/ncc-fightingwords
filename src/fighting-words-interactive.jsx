@@ -5,7 +5,8 @@ import { SCRIPTURE_TAGS } from "./scriptureTags.js";
 
 const CACHE_KEY = "fighting-words-custom-terms";
 const MIN_TYPEAHEAD_CHARS = 2;
-const MAX_CACHED_TERMS = 30;
+const MAX_CACHED_TERMS = 4;
+const VISIBLE_BUBBLE_COUNT = 5;
 
 function loadCachedTerms() {
   try {
@@ -311,9 +312,9 @@ function getTypeaheadSuggestions(query, cachedTerms, selectedTags, selectedCusto
     return label.includes(q) || tag.toLowerCase().includes(q);
   });
   const wordMatches = SCRIPTURE_WORDS.filter((w) => w.includes(q)).slice(0, 25);
-  const previousMatches = cachedTerms.filter(
-    (t) => t.toLowerCase().includes(q) && !selectedTags.has(t) && !selectedCustomTerms.has(t)
-  );
+  const previousMatches = cachedTerms
+    .filter((t) => t.toLowerCase().includes(q) && !selectedTags.has(t) && !selectedCustomTerms.has(t))
+    .slice(0, MAX_CACHED_TERMS);
 
   return { tags: tagMatches, words: wordMatches, previous: previousMatches };
 }
@@ -518,9 +519,10 @@ function TypeaheadSearch({
   );
 }
 
-// ── Cached terms row (plain text + add again or click to remove) ───────────
+// ── Cached terms row (plain text + add again or click to remove; max 4 shown) ─
 function CachedTermsRow({ terms, onAdd, onRemove, selectedTags, selectedCustomTerms, totalActiveCount }) {
-  if (terms.length === 0) return null;
+  const visibleTerms = terms.slice(0, MAX_CACHED_TERMS);
+  if (visibleTerms.length === 0) return null;
   const canAdd = totalActiveCount < 3;
   return (
     <div
@@ -545,7 +547,7 @@ function CachedTermsRow({ terms, onAdd, onRemove, selectedTags, selectedCustomTe
       >
         Previous:
       </span>
-      {terms.map((term) => {
+      {visibleTerms.map((term) => {
         const isActive = selectedTags.has(term) || selectedCustomTerms.has(term);
         const handleClick = () => {
           if (isActive) onRemove(term);
@@ -888,7 +890,7 @@ export default function FightingWordsInteractive() {
               alignItems: "center",
             }}
           >
-            {SCRIPTURE_TAGS.map((tag) => (
+            {SCRIPTURE_TAGS.slice(0, VISIBLE_BUBBLE_COUNT).map((tag) => (
               <FilterBubble
                 key={tag}
                 tag={tag}
