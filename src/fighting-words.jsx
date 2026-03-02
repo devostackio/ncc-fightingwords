@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Analytics } from "@vercel/analytics/react";
 import SCRIPTURES from "./scripture.json";
+import { loadLocalScriptures } from "./localScriptures.js";
 
 // ── FIGHTING WORDS DATA (from scripture.json) ──────────────────
 
@@ -291,6 +292,13 @@ export default function FightingWords() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollRef = useRef(null);
   const [cardWidth, setCardWidth] = useState(340);
+  const [localScriptures, setLocalScriptures] = useState([]);
+
+  useEffect(() => {
+    setLocalScriptures(loadLocalScriptures());
+  }, []);
+
+  const allScriptures = useMemo(() => [...SCRIPTURES, ...localScriptures], [localScriptures]);
 
   useEffect(() => {
     const w = Math.min(340, window.innerWidth * 0.82);
@@ -305,8 +313,8 @@ export default function FightingWords() {
     const totalCardWidth = cardWidth + gap;
     const centerOffset = (container.clientWidth - cardWidth) / 2;
     const index = Math.round((scrollLeft - centerOffset + totalCardWidth / 2) / totalCardWidth);
-    setCurrentIndex(Math.max(0, Math.min(index, SCRIPTURES.length - 1)));
-  }, [cardWidth]);
+    setCurrentIndex(Math.max(0, Math.min(index, allScriptures.length - 1)));
+  }, [cardWidth, allScriptures.length]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -418,7 +426,7 @@ export default function FightingWords() {
           zIndex: 1,
         }}
       >
-        {SCRIPTURES.map((scripture, i) => (
+        {allScriptures.map((scripture, i) => (
           <ScriptureCard
             key={i}
             scripture={scripture}
@@ -429,7 +437,7 @@ export default function FightingWords() {
       </div>
 
       {/* Dots */}
-      <DotIndicator total={SCRIPTURES.length} current={currentIndex} />
+      <DotIndicator total={allScriptures.length} current={currentIndex} />
 
       {/* Counter */}
       <div
@@ -441,7 +449,7 @@ export default function FightingWords() {
           letterSpacing: "1px",
         }}
       >
-        {currentIndex + 1} / {SCRIPTURES.length}
+        {currentIndex + 1} / {allScriptures.length}
       </div>
 
       {/* Hide scrollbar */}

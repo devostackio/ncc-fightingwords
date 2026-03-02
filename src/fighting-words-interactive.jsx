@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Analytics } from "@vercel/analytics/react";
 import SCRIPTURES from "./scripture.json";
 import { SCRIPTURE_TAGS } from "./scriptureTags.js";
+import { addLocalScripture, loadLocalScriptures } from "./localScriptures.js";
 
 const CACHE_KEY = "fighting-words-custom-terms";
 const MIN_TYPEAHEAD_CHARS = 2;
@@ -26,10 +27,10 @@ function saveCachedTerms(list) {
 }
 
 // Tokenize all scripture text into unique words (lowercase, letters only, min length 2)
-function buildScriptureWords() {
+function buildScriptureWords(scriptures) {
   const seen = new Set();
   const words = [];
-  for (const s of SCRIPTURES) {
+  for (const s of scriptures) {
     const tokens = (s.text || "")
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, " ")
@@ -44,8 +45,6 @@ function buildScriptureWords() {
   }
   return words.sort((a, b) => a.localeCompare(b));
 }
-
-const SCRIPTURE_WORDS = buildScriptureWords();
 
 // ── Human-friendly labels for filter bubbles (never show raw tags on cards) ──
 const TAG_LABELS = {
@@ -303,7 +302,7 @@ const BUBBLE_PADDING_V = 14;
 const BUBBLE_PADDING_H = 20;
 const BUBBLE_FONT_SIZE = 17;
 
-function getTypeaheadSuggestions(query, cachedTerms, selectedTags, selectedCustomTerms) {
+function getTypeaheadSuggestions(query, cachedTerms, selectedTags, selectedCustomTerms, scriptureWords) {
   const q = (query || "").trim().toLowerCase();
   if (q.length < MIN_TYPEAHEAD_CHARS) return { tags: [], words: [], previous: [] };
 
@@ -311,12 +310,53 @@ function getTypeaheadSuggestions(query, cachedTerms, selectedTags, selectedCusto
     const label = (TAG_LABELS[tag] ?? tag).toLowerCase();
     return label.includes(q) || tag.toLowerCase().includes(q);
   });
-  const wordMatches = SCRIPTURE_WORDS.filter((w) => w.includes(q)).slice(0, 25);
+  const wordMatches = scriptureWords.filter((w) => w.includes(q)).slice(0, 25);
   const previousMatches = cachedTerms
     .filter((t) => t.toLowerCase().includes(q) && !selectedTags.has(t) && !selectedCustomTerms.has(t))
     .slice(0, MAX_CACHED_TERMS);
 
   return { tags: tagMatches, words: wordMatches, previous: previousMatches };
+}
+
+function FieldLabel({ children }) {
+  return (
+    <div
+      style={{
+        fontFamily: "'DM Sans', sans-serif",
+        fontSize: 12,
+        fontWeight: 700,
+        letterSpacing: 2,
+        textTransform: "uppercase",
+        color: "#ffffff88",
+        marginBottom: 8,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function TagChip({ value, onRemove }) {
+  return (
+    <button
+      type="button"
+      onClick={onRemove}
+      aria-label={`Remove ${value}`}
+      style={{
+        minHeight: 32,
+        padding: "6px 10px",
+        borderRadius: 999,
+        border: "1px solid rgba(255,255,255,0.18)",
+        background: "rgba(255,255,255,0.08)",
+        color: "#fff",
+        fontFamily: "'DM Sans', sans-serif",
+        fontSize: 13,
+        cursor: "pointer",
+      }}
+    >
+      {(TAG_LABELS[value] ?? value).replace(/\?$/, "")} ×
+    </button>
+  );
 }
 
 function TypeaheadSearch({
@@ -625,6 +665,7 @@ export default function FightingWordsInteractive() {
   const [selectedTags, setSelectedTags] = useState(new Set());
   const [selectedCustomTerms, setSelectedCustomTerms] = useState(new Set());
   const [cachedCustomTerms, setCachedCustomTerms] = useState(loadCachedTerms);
+  const [localScriptures, setLocalScriptures] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [typeaheadOpen, setTypeaheadOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -633,9 +674,23 @@ export default function FightingWordsInteractive() {
   const scrollRef = useRef(null);
   const typeaheadContainerRef = useRef(null);
   const [cardWidth, setCardWidth] = useState(340);
+  const [showSubmit, setShowSubmit] = useState(false);
+  const [newRef, setNewRef] = useState("");
+  const [newText, setNewText] = useState("");
+  const [newTagPick, setNewTagPick] = useState(SCRIPTURE_TAGS[0] || "hope");
+  const [newTags, setNewTags] = useState([]);
+  const [submitError, setSubmitError] = useState("");
+  const [submitSuccess, setSubmitSuccess] = useState("");
 
   const totalActiveCount = selectedTags.size + selectedCustomTerms.size;
   const canSelectMore = totalActiveCount < 3;
+
+  useEffect(() => {
+    setLocalScriptures(loadLocalScriptures());
+  }, []);
+
+  const allScriptures = useMemo(() => [...SCRIPTURES, ...localScriptures], [localScriptures]);
+  const scriptureWords = useMemo(() => buildScriptureWords(allScriptures), [allScriptures]);
 
   useEffect(() => {
     const w = Math.min(340, window.innerWidth * 0.82);
@@ -688,21 +743,28 @@ export default function FightingWordsInteractive() {
   }, []);
 
   const typeaheadSuggestions = useMemo(
-    () => getTypeaheadSuggestions(searchQuery, cachedCustomTerms, selectedTags, selectedCustomTerms),
-    [searchQuery, cachedCustomTerms, selectedTags, selectedCustomTerms]
+    () =>
+      getTypeaheadSuggestions(
+        searchQuery,
+        cachedCustomTerms,
+        selectedTags,
+        selectedCustomTerms,
+        scriptureWords
+      ),
+    [searchQuery, cachedCustomTerms, selectedTags, selectedCustomTerms, scriptureWords]
   );
 
   const filteredScriptures = useCallback(() => {
     if (totalActiveCount === 0) return [];
     const tagArr = Array.from(selectedTags);
     const customArr = Array.from(selectedCustomTerms);
-    return SCRIPTURES.filter((s) => {
+    return allScriptures.filter((s) => {
       if (tagArr.length && s.tags && s.tags.some((t) => tagArr.includes(t))) return true;
       const textLower = (s.text || "").toLowerCase();
       if (customArr.some((word) => textLower.includes(word.toLowerCase()))) return true;
       return false;
     });
-  }, [selectedTags, selectedCustomTerms, totalActiveCount]);
+  }, [selectedTags, selectedCustomTerms, totalActiveCount, allScriptures]);
 
   const results = filteredScriptures();
   const canShowResults = totalActiveCount > 0 && results.length > 0;
@@ -747,6 +809,50 @@ export default function FightingWordsInteractive() {
       });
     }
   }, [selectedTags]);
+
+  const addNewTag = () => {
+    setSubmitError("");
+    setSubmitSuccess("");
+    setNewTags((prev) => {
+      if (!newTagPick) return prev;
+      if (prev.includes(newTagPick)) return prev;
+      if (prev.length >= 3) return prev;
+      return [...prev, newTagPick];
+    });
+  };
+
+  const submitNewVerse = (e) => {
+    e.preventDefault();
+    setSubmitError("");
+    setSubmitSuccess("");
+
+    const reference = (newRef || "").trim();
+    const text = (newText || "").trim();
+    const tags = (newTags || []).slice(0, 3);
+
+    if (!reference) return setSubmitError("Please add a scripture reference.");
+    if (!text) return setSubmitError("Please add the verse text.");
+    if (tags.length === 0) return setSubmitError("Please choose at least 1 theme tag (up to 3).");
+
+    const res = addLocalScripture(
+      { reference, text, tags, submittedBy: "" },
+      SCRIPTURES,
+      localScriptures
+    );
+
+    if (!res.ok) {
+      if (res.reason === "duplicate") {
+        return setSubmitError("That reference already exists (or overlaps an existing reference).");
+      }
+      return setSubmitError("Couldn’t save that verse. Please try again.");
+    }
+
+    setLocalScriptures(res.next);
+    setNewRef("");
+    setNewText("");
+    setNewTags([]);
+    setSubmitSuccess("Saved to this browser. It’s now searchable like the built-in verses.");
+  };
 
   return (
     <div
@@ -857,6 +963,200 @@ export default function FightingWordsInteractive() {
           >
             Worried? Confused? Challenged? Need hope? Choose up to 3—we’ll show verses that speak to any of them.
           </p>
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 560,
+              margin: "0 auto 18px",
+              borderRadius: 16,
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(255,255,255,0.05)",
+              overflow: "hidden",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setShowSubmit((v) => !v);
+                setSubmitError("");
+                setSubmitSuccess("");
+              }}
+              aria-expanded={showSubmit}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "14px 16px",
+                minHeight: MIN_TOUCH_PX,
+                background: "transparent",
+                border: "none",
+                color: "#fff",
+                cursor: "pointer",
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: 14,
+                fontWeight: 700,
+              }}
+            >
+              <span>Add your favorite verse (saved to this browser)</span>
+              <span aria-hidden="true" style={{ opacity: 0.7 }}>
+                {showSubmit ? "–" : "+"}
+              </span>
+            </button>
+            {showSubmit && (
+              <form onSubmit={submitNewVerse} style={{ padding: "14px 16px 16px" }}>
+                <div style={{ marginBottom: 12 }}>
+                  <FieldLabel>Reference</FieldLabel>
+                  <input
+                    value={newRef}
+                    onChange={(e) => setNewRef(e.target.value)}
+                    placeholder='e.g. "Psalm 23:1-3"'
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      minHeight: MIN_TOUCH_PX,
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      border: "1px solid rgba(255,255,255,0.18)",
+                      background: "rgba(0,0,0,0.18)",
+                      color: "#fff",
+                      outline: "none",
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: 14,
+                    }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <FieldLabel>Verse text</FieldLabel>
+                  <textarea
+                    value={newText}
+                    onChange={(e) => setNewText(e.target.value)}
+                    placeholder="Paste or type the verse…"
+                    rows={4}
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      border: "1px solid rgba(255,255,255,0.18)",
+                      background: "rgba(0,0,0,0.18)",
+                      color: "#fff",
+                      outline: "none",
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: 14,
+                      resize: "vertical",
+                    }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: 10 }}>
+                  <FieldLabel>Theme tags (pick up to 3)</FieldLabel>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 10,
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                    }}
+                  >
+                    <select
+                      value={newTagPick}
+                      onChange={(e) => setNewTagPick(e.target.value)}
+                      style={{
+                        minHeight: MIN_TOUCH_PX,
+                        padding: "10px 12px",
+                        borderRadius: 12,
+                        border: "1px solid rgba(255,255,255,0.18)",
+                        background: "rgba(0,0,0,0.18)",
+                        color: "#fff",
+                        outline: "none",
+                        fontFamily: "'DM Sans', sans-serif",
+                        fontSize: 14,
+                        flex: "1 1 240px",
+                      }}
+                    >
+                      {SCRIPTURE_TAGS.map((t) => (
+                        <option key={t} value={t}>
+                          {TAG_LABELS[t] ?? t}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={addNewTag}
+                      disabled={newTags.length >= 3 || newTags.includes(newTagPick)}
+                      style={{
+                        minHeight: MIN_TOUCH_PX,
+                        padding: "10px 14px",
+                        borderRadius: 12,
+                        border: "1px solid rgba(255,255,255,0.18)",
+                        background:
+                          newTags.length >= 3 || newTags.includes(newTagPick)
+                            ? "rgba(255,255,255,0.08)"
+                            : "rgba(255,255,255,0.16)",
+                        color: "#fff",
+                        cursor:
+                          newTags.length >= 3 || newTags.includes(newTagPick)
+                            ? "default"
+                            : "pointer",
+                        fontFamily: "'DM Sans', sans-serif",
+                        fontSize: 14,
+                        fontWeight: 700,
+                      }}
+                    >
+                      Add tag
+                    </button>
+                  </div>
+                  {newTags.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                      {newTags.map((t) => (
+                        <TagChip
+                          key={t}
+                          value={t}
+                          onRemove={() => setNewTags((prev) => prev.filter((x) => x !== t))}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {submitError && (
+                  <div style={{ color: "#ffb4b4", fontSize: 13, marginBottom: 10 }}>
+                    {submitError}
+                  </div>
+                )}
+                {submitSuccess && (
+                  <div style={{ color: "#bfffd1", fontSize: 13, marginBottom: 10 }}>
+                    {submitSuccess}
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <button
+                    type="submit"
+                    style={{
+                      minHeight: MIN_TOUCH_PX,
+                      padding: "12px 18px",
+                      borderRadius: 999,
+                      border: "none",
+                      background: "#fff",
+                      color: "#1a1a1a",
+                      cursor: "pointer",
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: 14,
+                      fontWeight: 800,
+                    }}
+                  >
+                    Save verse
+                  </button>
+                  <span style={{ color: "#ffffff66", fontSize: 12 }}>
+                    Saved verses: {localScriptures.length}
+                  </span>
+                </div>
+              </form>
+            )}
+          </div>
           <div ref={typeaheadContainerRef}>
             <TypeaheadSearch
               value={searchQuery}
