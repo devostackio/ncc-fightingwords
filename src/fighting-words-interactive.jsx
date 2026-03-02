@@ -1,7 +1,50 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Analytics } from "@vercel/analytics/react";
 import SCRIPTURES from "./scripture.json";
 import { SCRIPTURE_TAGS } from "./scriptureTags.js";
+
+const CACHE_KEY = "fighting-words-custom-terms";
+const MIN_TYPEAHEAD_CHARS = 2;
+const MAX_CACHED_TERMS = 30;
+
+function loadCachedTerms() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.slice(0, MAX_CACHED_TERMS) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCachedTerms(list) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(list.slice(0, MAX_CACHED_TERMS)));
+  } catch (_) {}
+}
+
+// Tokenize all scripture text into unique words (lowercase, letters only, min length 2)
+function buildScriptureWords() {
+  const seen = new Set();
+  const words = [];
+  for (const s of SCRIPTURES) {
+    const tokens = (s.text || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length >= 2);
+    for (const w of tokens) {
+      if (!seen.has(w)) {
+        seen.add(w);
+        words.push(w);
+      }
+    }
+  }
+  return words.sort((a, b) => a.localeCompare(b));
+}
+
+const SCRIPTURE_WORDS = buildScriptureWords();
 
 // ── Human-friendly labels for filter bubbles (never show raw tags on cards) ──
 const TAG_LABELS = {
@@ -253,12 +296,293 @@ function ScriptureCard({ scripture, index, isActive }) {
   );
 }
 
-// ── Filter bubble (min 44px touch target, inclusive toggle) ──────────────
+// ── Typeahead search (tags, scripture words, previous searches) ──────────
 const MIN_TOUCH_PX = 44;
 const BUBBLE_PADDING_V = 14;
 const BUBBLE_PADDING_H = 20;
 const BUBBLE_FONT_SIZE = 17;
 
+function getTypeaheadSuggestions(query, cachedTerms, selectedTags, selectedCustomTerms) {
+  const q = (query || "").trim().toLowerCase();
+  if (q.length < MIN_TYPEAHEAD_CHARS) return { tags: [], words: [], previous: [] };
+
+  const tagMatches = SCRIPTURE_TAGS.filter((tag) => {
+    const label = (TAG_LABELS[tag] ?? tag).toLowerCase();
+    return label.includes(q) || tag.toLowerCase().includes(q);
+  });
+  const wordMatches = SCRIPTURE_WORDS.filter((w) => w.includes(q)).slice(0, 25);
+  const previousMatches = cachedTerms.filter(
+    (t) => t.toLowerCase().includes(q) && !selectedTags.has(t) && !selectedCustomTerms.has(t)
+  );
+
+  return { tags: tagMatches, words: wordMatches, previous: previousMatches };
+}
+
+function TypeaheadSearch({
+  value,
+  onChange,
+  onAddTerm,
+  suggestions,
+  isOpen,
+  onOpenChange,
+  highlightedIndex,
+  onHighlightedChange,
+  cachedTerms,
+  selectedTags,
+  selectedCustomTerms,
+  totalActiveCount,
+}) {
+  const inputRef = useRef(null);
+  const listRef = useRef(null);
+  const flatten = useMemo(() => {
+    const { tags, words, previous } = suggestions;
+    const out = [];
+    tags.forEach((tag) => out.push({ type: "tag", value: tag, label: TAG_LABELS[tag] ?? tag }));
+    words.forEach((w) => out.push({ type: "word", value: w, label: w }));
+    previous.forEach((t) => out.push({ type: "previous", value: t, label: t }));
+    return out;
+  }, [suggestions]);
+
+  const canAdd = totalActiveCount < 3 && value.trim().length >= MIN_TYPEAHEAD_CHARS;
+
+  const addCurrent = useCallback(() => {
+    const trimmed = value.trim();
+    if (!trimmed || totalActiveCount >= 3) return;
+    onAddTerm(trimmed, null);
+    onChange("");
+    onOpenChange(false);
+  }, [value, totalActiveCount, onAddTerm, onChange, onOpenChange]);
+
+  useEffect(() => {
+    if (highlightedIndex >= flatten.length) onHighlightedChange(Math.max(0, flatten.length - 1));
+  }, [flatten.length, highlightedIndex, onHighlightedChange]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const el = listRef.current;
+    if (el && highlightedIndex >= 0) {
+      const item = el.children[highlightedIndex];
+      if (item) item.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [isOpen, highlightedIndex]);
+
+  return (
+    <div style={{ position: "relative", width: "100%", maxWidth: "480px", margin: "0 auto 16px" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "stretch",
+          gap: "8px",
+          minHeight: MIN_TOUCH_PX,
+          background: "rgba(255,255,255,0.08)",
+          border: "2px solid rgba(255,255,255,0.2)",
+          borderRadius: "12px",
+          padding: "6px 10px 6px 16px",
+        }}
+      >
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value);
+            onOpenChange(true);
+            onHighlightedChange(0);
+          }}
+          onFocus={() => flatten.length > 0 && onOpenChange(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              if (flatten.length > 0 && highlightedIndex >= 0 && flatten[highlightedIndex]) {
+                const item = flatten[highlightedIndex];
+                onAddTerm(item.value, item.type);
+                onChange("");
+                onOpenChange(false);
+                e.preventDefault();
+              } else {
+                addCurrent();
+                e.preventDefault();
+              }
+            } else if (e.key === "Escape") {
+              onOpenChange(false);
+              inputRef.current?.blur();
+            } else if (e.key === "ArrowDown") {
+              e.preventDefault();
+              onHighlightedChange(Math.min(highlightedIndex + 1, flatten.length - 1));
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              onHighlightedChange(Math.max(highlightedIndex - 1, 0));
+            }
+          }}
+          placeholder="Search topics or words in verses…"
+          aria-label="Search topics or words in verses"
+          aria-autocomplete="list"
+          aria-expanded={isOpen}
+          aria-controls="typeahead-list"
+          id="typeahead-input"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            minHeight: 32,
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: 16,
+            color: "#fff",
+            background: "transparent",
+            border: "none",
+            outline: "none",
+          }}
+        />
+        <button
+          type="button"
+          onClick={addCurrent}
+          disabled={!canAdd}
+          aria-label="Add current search as filter"
+          style={{
+            minWidth: MIN_TOUCH_PX,
+            minHeight: MIN_TOUCH_PX,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: canAdd ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.15)",
+            color: canAdd ? "#1a1a1a" : "#ffffff66",
+            border: "none",
+            borderRadius: "8px",
+            cursor: canAdd ? "pointer" : "default",
+            fontSize: "18px",
+            fontWeight: 700,
+          }}
+        >
+          +
+        </button>
+      </div>
+      {isOpen && flatten.length > 0 && (
+        <ul
+          ref={listRef}
+          id="typeahead-list"
+          role="listbox"
+          aria-labelledby="typeahead-input"
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 0,
+            margin: "6px 0 0",
+            padding: "8px 0",
+            listStyle: "none",
+            background: "rgba(28,28,28,0.98)",
+            border: "1px solid rgba(255,255,255,0.15)",
+            borderRadius: "12px",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.4)",
+            maxHeight: "280px",
+            overflowY: "auto",
+            zIndex: 10,
+          }}
+        >
+          {flatten.map((item, i) => (
+            <li
+              key={`${item.type}-${item.value}`}
+              role="option"
+              aria-selected={i === highlightedIndex}
+              style={{
+                padding: "12px 16px",
+                minHeight: MIN_TOUCH_PX,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                cursor: "pointer",
+                background: i === highlightedIndex ? "rgba(255,255,255,0.1)" : "transparent",
+                color: "#f5f5f5",
+                fontSize: 15,
+                fontFamily: "'DM Sans', sans-serif",
+              }}
+              onMouseEnter={() => onHighlightedChange(i)}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                if (item.type === "previous") {
+                  onAddTerm(item.value, "previous");
+                } else {
+                  onAddTerm(item.value, item.type);
+                }
+                onChange("");
+                onOpenChange(false);
+              }}
+            >
+              <span>{item.type === "tag" ? item.label : item.label}</span>
+              {item.type === "previous" && (
+                <span style={{ color: "#ffffff99", marginLeft: "8px" }}>+</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ── Cached terms row (plain text + add again or click to remove) ───────────
+function CachedTermsRow({ terms, onAdd, onRemove, selectedTags, selectedCustomTerms, totalActiveCount }) {
+  if (terms.length === 0) return null;
+  const canAdd = totalActiveCount < 3;
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: "6px 12px",
+        justifyContent: "center",
+        alignItems: "center",
+        marginBottom: "20px",
+        padding: "0 8px",
+      }}
+    >
+      <span
+        style={{
+          fontSize: 12,
+          color: "#ffffff66",
+          marginRight: 4,
+          flexBasis: "100%",
+          textAlign: "center",
+        }}
+      >
+        Previous:
+      </span>
+      {terms.map((term) => {
+        const isActive = selectedTags.has(term) || selectedCustomTerms.has(term);
+        const handleClick = () => {
+          if (isActive) onRemove(term);
+          else if (canAdd) onAdd(term);
+        };
+        return (
+          <button
+            key={term}
+            type="button"
+            onClick={handleClick}
+            disabled={!isActive && !canAdd}
+            aria-label={isActive ? `Remove "${term}" from filters` : `Add "${term}" as filter again`}
+            style={{
+              minHeight: 32,
+              padding: "4px 8px 4px 10px",
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: 13,
+              color: isActive ? "#ffffffcc" : "#ffffffaa",
+              background: "transparent",
+              border: "none",
+              borderBottom: "1px solid rgba(255,255,255,0.3)",
+              cursor: isActive || canAdd ? "pointer" : "default",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            {term}
+            <span style={{ opacity: 0.9 }}>+</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Filter bubble (min 44px touch target, inclusive toggle) ──────────────
 function FilterBubble({ tag, label, selected, onToggle, disabled }) {
   const isSelected = selected.has(tag);
   return (
@@ -297,36 +621,89 @@ function FilterBubble({ tag, label, selected, onToggle, disabled }) {
 export default function FightingWordsInteractive() {
   Analytics;
   const [selectedTags, setSelectedTags] = useState(new Set());
+  const [selectedCustomTerms, setSelectedCustomTerms] = useState(new Set());
+  const [cachedCustomTerms, setCachedCustomTerms] = useState(loadCachedTerms);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [typeaheadOpen, setTypeaheadOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [showResults, setShowResults] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollRef = useRef(null);
+  const typeaheadContainerRef = useRef(null);
   const [cardWidth, setCardWidth] = useState(340);
+
+  const totalActiveCount = selectedTags.size + selectedCustomTerms.size;
+  const canSelectMore = totalActiveCount < 3;
 
   useEffect(() => {
     const w = Math.min(340, window.innerWidth * 0.82);
     setCardWidth(w);
   }, []);
 
+  useEffect(() => {
+    if (!typeaheadOpen) return;
+    const handle = (e) => {
+      if (typeaheadContainerRef.current && !typeaheadContainerRef.current.contains(e.target)) {
+        setTypeaheadOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [typeaheadOpen]);
+
   const toggleTag = useCallback((tag) => {
     setSelectedTags((prev) => {
       const next = new Set(prev);
-      if (next.has(tag)) {
-        next.delete(tag);
-      } else if (next.size < 3) {
-        next.add(tag);
-      }
+      if (next.has(tag)) next.delete(tag);
+      else if (totalActiveCount < 3) next.add(tag);
+      return next;
+    });
+  }, [totalActiveCount]);
+
+  const addTerm = useCallback((term, type) => {
+    const t = (term || "").trim();
+    if (!t || totalActiveCount >= 3) return;
+    const isTag = SCRIPTURE_TAGS.includes(t);
+    const resolvedTag = isTag ? t : SCRIPTURE_TAGS.find((tag) => (TAG_LABELS[tag] ?? tag).toLowerCase() === t.toLowerCase());
+    if (resolvedTag) {
+      setSelectedTags((prev) => (prev.has(resolvedTag) ? prev : new Set([...prev, resolvedTag])));
+    } else {
+      setSelectedCustomTerms((prev) => (prev.has(t) ? prev : new Set([...prev, t])));
+    }
+    setCachedCustomTerms((prev) => {
+      const next = [t, ...prev.filter((x) => x.toLowerCase() !== t.toLowerCase())].slice(0, MAX_CACHED_TERMS);
+      saveCachedTerms(next);
+      return next;
+    });
+  }, [totalActiveCount]);
+
+  const removeCustomTerm = useCallback((term) => {
+    setSelectedCustomTerms((prev) => {
+      const next = new Set(prev);
+      next.delete(term);
       return next;
     });
   }, []);
 
+  const typeaheadSuggestions = useMemo(
+    () => getTypeaheadSuggestions(searchQuery, cachedCustomTerms, selectedTags, selectedCustomTerms),
+    [searchQuery, cachedCustomTerms, selectedTags, selectedCustomTerms]
+  );
+
   const filteredScriptures = useCallback(() => {
-    if (selectedTags.size === 0) return [];
-    const arr = Array.from(selectedTags);
-    return SCRIPTURES.filter((s) => s.tags && s.tags.some((t) => arr.includes(t)));
-  }, [selectedTags]);
+    if (totalActiveCount === 0) return [];
+    const tagArr = Array.from(selectedTags);
+    const customArr = Array.from(selectedCustomTerms);
+    return SCRIPTURES.filter((s) => {
+      if (tagArr.length && s.tags && s.tags.some((t) => tagArr.includes(t))) return true;
+      const textLower = (s.text || "").toLowerCase();
+      if (customArr.some((word) => textLower.includes(word.toLowerCase()))) return true;
+      return false;
+    });
+  }, [selectedTags, selectedCustomTerms, totalActiveCount]);
 
   const results = filteredScriptures();
-  const canShowResults = selectedTags.size > 0 && results.length > 0;
+  const canShowResults = totalActiveCount > 0 && results.length > 0;
 
   const handleScroll = useCallback(() => {
     if (!scrollRef.current) return;
@@ -349,8 +726,25 @@ export default function FightingWordsInteractive() {
   const goBackToBubbles = () => {
     setShowResults(false);
     setSelectedTags(new Set());
+    setSelectedCustomTerms(new Set());
     setCurrentIndex(0);
   };
+
+  const removeTerm = useCallback((term) => {
+    if (selectedTags.has(term)) {
+      setSelectedTags((prev) => {
+        const next = new Set(prev);
+        next.delete(term);
+        return next;
+      });
+    } else {
+      setSelectedCustomTerms((prev) => {
+        const next = new Set(prev);
+        next.delete(term);
+        return next;
+      });
+    }
+  }, [selectedTags]);
 
   return (
     <div
@@ -454,13 +848,37 @@ export default function FightingWordsInteractive() {
             style={{
               fontSize: "clamp(15px, 2.5vw, 17px)",
               color: "#ffffff99",
-              margin: "0 0 24px",
+              margin: "0 0 16px",
               textAlign: "center",
               lineHeight: 1.4,
             }}
           >
             Worried? Confused? Challenged? Need hope? Choose up to 3—we’ll show verses that speak to any of them.
           </p>
+          <div ref={typeaheadContainerRef}>
+            <TypeaheadSearch
+              value={searchQuery}
+              onChange={setSearchQuery}
+              onAddTerm={addTerm}
+              suggestions={typeaheadSuggestions}
+              isOpen={typeaheadOpen}
+              onOpenChange={setTypeaheadOpen}
+              highlightedIndex={highlightedIndex}
+              onHighlightedChange={setHighlightedIndex}
+              cachedTerms={cachedCustomTerms}
+              selectedTags={selectedTags}
+              selectedCustomTerms={selectedCustomTerms}
+              totalActiveCount={totalActiveCount}
+            />
+          </div>
+          <CachedTermsRow
+            terms={cachedCustomTerms}
+            onAdd={addTerm}
+            onRemove={removeTerm}
+            selectedTags={selectedTags}
+            selectedCustomTerms={selectedCustomTerms}
+            totalActiveCount={totalActiveCount}
+          />
           <div
             style={{
               display: "flex",
@@ -477,7 +895,7 @@ export default function FightingWordsInteractive() {
                 label={TAG_LABELS[tag] ?? tag}
                 selected={selectedTags}
                 onToggle={toggleTag}
-                disabled={selectedTags.size >= 3 && !selectedTags.has(tag)}
+                disabled={totalActiveCount >= 3 && !selectedTags.has(tag)}
               />
             ))}
           </div>

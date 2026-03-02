@@ -7,7 +7,7 @@ const APPS = [
     id: "fighting-words",
     name: "Fighting Words",
     description: "Carry scripture cards curated by the FaithBuilder Community family to speak truth in every season.",
-    href: "/fighting-words",
+    href: "/interactive",
     badge: "Featured",
     theme: {
       bg: "#151515",
