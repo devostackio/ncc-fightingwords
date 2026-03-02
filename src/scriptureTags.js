@@ -28,4 +28,5 @@ export const SCRIPTURE_TAGS = [
   "trust",
   "trials",
   "weakness",
+  "word",
 ];
