@@ -1,5 +1,6 @@
 import React from "react";
 import FightingWords from "./fighting-words.jsx";
+import FightingWordsInteractive from "./fighting-words-interactive.jsx";
 
 const APPS = [
   {
@@ -420,7 +421,13 @@ export default function App() {
     normalizedPath === "/fighting-words" ||
     normalizedPath.endsWith("/fighting-words") ||
     normalizedPath.endsWith("/fighting-words/");
+  const isInteractive =
+    normalizedPath === "/interactive" ||
+    normalizedPath.endsWith("/interactive") ||
+    normalizedPath.endsWith("/interactive/");
 
-  return isFightingWords ? <FightingWords /> : <AppCenter />;
+  if (isInteractive) return <FightingWordsInteractive />;
+  if (isFightingWords) return <FightingWords />;
+  return <AppCenter />;
 }
 
