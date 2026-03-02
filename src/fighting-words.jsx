@@ -1,29 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Analytics } from "@vercel/analytics/react";
+import SCRIPTURES from "./scripture.json";
 
-// ── FIGHTING WORDS DATA ──────────────────────────────────────
-const SCRIPTURES = [
-  { reference: "John 14:1", text: "Do not let your hearts be troubled. You believe in God; believe also in me.", submittedBy: "Sarah M." },
-  { reference: "Matthew 5:6", text: "Blessed are those who hunger and thirst for righteousness for they shall be filled.", submittedBy: "James T." },
-  { reference: "Psalm 23:6", text: "Surely goodness and mercy will follow me all the days of my life and I shall dwell in the house of the Lord forever.", submittedBy: "Maria L." },
-  { reference: "Isaiah 40:31", text: "But those who hope in the Lord will renew their strength, they will soar on wings like eagles, they will run and not grow weary. They will walk and not faint.", submittedBy: "David R." },
-  { reference: "Romans 8:28", text: "And we know that in all things God works for the good of those who love him, who have been called according to his purpose.", submittedBy: "Rachel K." },
-  { reference: "Philippians 4:13", text: "I can do all things through Christ who strengthens me.", submittedBy: "Michael B." },
-  { reference: "Jeremiah 29:11", text: "For I know the plans I have for you, declares the Lord, plans to prosper you and not to harm you, plans to give you hope and a future.", submittedBy: "Angela W." },
-  { reference: "Psalm 46:10", text: "Be still, and know that I am God. I will be exalted among the nations, I will be exalted in the earth.", submittedBy: "Thomas H." },
-  { reference: "Proverbs 3:5-6", text: "Trust in the Lord with all your heart and lean not on your own understanding; in all your ways submit to him, and he will make your paths straight.", submittedBy: "Grace P." },
-  { reference: "2 Timothy 1:7", text: "For God has not given us a spirit of fear, but of power and of love and of a sound mind.", submittedBy: "Daniel F." },
-  { reference: "Joshua 1:9", text: "Have I not commanded you? Be strong and courageous. Do not be afraid; do not be discouraged, for the Lord your God will be with you wherever you go.", submittedBy: "Naomi C." },
-  { reference: "Psalm 119:105", text: "Your word is a lamp for my feet, a light on my path.", submittedBy: "Elijah S." },
-  { reference: "Romans 8:38-39", text: "For I am convinced that neither death nor life, neither angels nor demons, neither the present nor the future, nor any powers, neither height nor depth, nor anything else in all creation, will be able to separate us from the love of God.", submittedBy: "Hannah J." },
-  { reference: "Deuteronomy 31:6", text: "Be strong and courageous. Do not be afraid or terrified because of them, for the Lord your God goes with you; he will never leave you nor forsake you.", submittedBy: "Samuel O." },
-  { reference: "Psalm 27:1", text: "The Lord is my light and my salvation — whom shall I fear? The Lord is the stronghold of my life — of whom shall I be afraid?", submittedBy: "Olivia N." },
-  { reference: "Isaiah 41:10", text: "So do not fear, for I am with you; do not be dismayed, for I am your God. I will strengthen you and help you; I will uphold you with my righteous right hand.", submittedBy: "Caleb D." },
-  { reference: "Matthew 11:28", text: "Come to me, all you who are weary and burdened, and I will give you rest.", submittedBy: "Lydia A." },
-  { reference: "Hebrews 11:1", text: "Now faith is confidence in what we hope for and assurance about what we do not see.", submittedBy: "Peter V." },
-  { reference: "Psalm 34:18", text: "The Lord is close to the brokenhearted and saves those who are crushed in spirit.", submittedBy: "Ruth E." },
-  { reference: "Ephesians 6:10", text: "Finally, be strong in the Lord and in his mighty power.", submittedBy: "Jonathan G." },
-];
+// ── FIGHTING WORDS DATA (from scripture.json) ──────────────────
 
 // ── 13 COLOR THEMES (soft, medium-hue, monochromatic) ────────
 const COLOR_THEMES = [
