@@ -5,7 +5,7 @@ const APPS = [
   {
     id: "fighting-words",
     name: "Fighting Words",
-    description: "Carry scripture cards curated by the National Community family to speak truth in every season.",
+    description: "Carry scripture cards curated by the FaithBuilder Community family to speak truth in every season.",
     href: "/fighting-words",
     badge: "Featured",
     theme: {
@@ -320,7 +320,7 @@ function AppCenter() {
                 color: "#FFFFFF88",
               }}
             >
-              National Community
+              FaithBuilder
             </span>
           </div>
           <div>
@@ -333,7 +333,7 @@ function AppCenter() {
                 letterSpacing: "-0.02em",
               }}
             >
-              National Community – App Center
+              FaithBuilder – App Center
             </h1>
             <p
               style={{
@@ -406,7 +406,7 @@ function AppCenter() {
             opacity: 0.7,
           }}
         >
-          National Community Church
+          FaithBuilder Community Church
         </span>
       </footer>
     </div>

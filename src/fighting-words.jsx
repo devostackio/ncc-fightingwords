@@ -372,7 +372,7 @@ export default function FightingWords() {
               color: "#ffffff88",
             }}
           >
-            National Community Church Family
+            FaithBuilder
           </span>
         </div>
         <h1
