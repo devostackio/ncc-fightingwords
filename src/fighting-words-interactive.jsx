@@ -907,7 +907,6 @@ export default function FightingWordsInteractive() {
               color: "#ffffff88",
             }}
           >
-            FaithBuilder
           </span>
         </div>
         <h1
@@ -950,19 +949,9 @@ export default function FightingWordsInteractive() {
               lineHeight: 1.3,
             }}
           >
-            Are you struggling with …
+            What do you need today?
           </p>
-          <p
-            style={{
-              fontSize: "clamp(15px, 2.5vw, 17px)",
-              color: "#ffffff99",
-              margin: "0 0 16px",
-              textAlign: "center",
-              lineHeight: 1.4,
-            }}
-          >
-            Worried? Confused? Challenged? Need hope? Choose up to 3—we’ll show verses that speak to any of them.
-          </p>
+          
           <div
             style={{
               width: "100%",
@@ -998,7 +987,7 @@ export default function FightingWordsInteractive() {
                 fontWeight: 700,
               }}
             >
-              <span>Add your favorite verse (saved to this browser)</span>
+              <span>Add Verse</span>
               <span aria-hidden="true" style={{ opacity: 0.7 }}>
                 {showSubmit ? "–" : "+"}
               </span>
