@@ -810,6 +810,7 @@ export default function FightingWordsInteractive() {
     }
   }, [selectedTags]);
 
+  //TODO: Unify search and add new tag functionality to be a single component
   const addNewTag = () => {
     setSubmitError("");
     setSubmitSuccess("");
@@ -821,6 +822,7 @@ export default function FightingWordsInteractive() {
     });
   };
 
+  //TODO: Unify submit new verse and add new tag functionality to be a single component
   const submitNewVerse = (e) => {
     e.preventDefault();
     setSubmitError("");
@@ -854,6 +856,8 @@ export default function FightingWordsInteractive() {
     setSubmitSuccess("Saved to this browser. It’s now searchable like the built-in verses.");
   };
 
+  //TODO: Add global terms of use, privacy policy, and other legal stuff to the bottom of the page
+  //TODO: Add a feedback tab anchored 80% down the page on right side of screen
   return (
     <div
       style={{
