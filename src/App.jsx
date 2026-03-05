@@ -415,19 +415,20 @@ function AppCenter() {
 }
 
 export default function App() {
-  const path = window.location.pathname || "/";
-  const normalizedPath = path.toLowerCase();
-  const isFightingWords =
-    normalizedPath === "/fighting-words" ||
-    normalizedPath.endsWith("/fighting-words") ||
-    normalizedPath.endsWith("/fighting-words/");
-  const isInteractive =
-    normalizedPath === "/interactive" ||
-    normalizedPath.endsWith("/interactive") ||
-    normalizedPath.endsWith("/interactive/");
+  // const path = window.location.pathname || "/app";
+  // const normalizedPath = path.toLowerCase();
+  // const isFightingWords =
+  //   normalizedPath === "/fighting-words" ||
+  //   normalizedPath.endsWith("/fighting-words") ||
+  //   normalizedPath.endsWith("/fighting-words/");
+  // const isInteractive =
+  //   normalizedPath === "/interactive" ||
+  //   normalizedPath.endsWith("/interactive") ||
+  //   normalizedPath.endsWith("/interactive/");
 
-  if (isInteractive) return <FightingWordsInteractive />;
-  if (isFightingWords) return <FightingWords />;
-  return <AppCenter />;
+  // if (isInteractive) return <FightingWordsInteractive />;
+  // if (isFightingWords) return <FightingWords />;
+  // return <AppCenter />;
+  return <FightingWordsInteractive />;
 }
 
