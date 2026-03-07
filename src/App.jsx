@@ -1,4 +1,5 @@
 import React from "react";
+import { Analytics } from "@vercel/analytics/react";
 import FightingWords from "./fighting-words.jsx";
 import FightingWordsInteractive from "./fighting-words-interactive.jsx";
 
@@ -430,6 +431,9 @@ export default function App() {
   // if (isFightingWords) return <FightingWords />;
   // return <AppCenter />;
   
-  return <FightingWordsInteractive />;
+  return <>
+  <Analytics/>
+  <FightingWordsInteractive />
+  </>;
 }
 

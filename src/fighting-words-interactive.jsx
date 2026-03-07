@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { Analytics } from "@vercel/analytics/react";
 import SCRIPTURES from "./scripture.json";
 import { SCRIPTURE_TAGS } from "./scriptureTags.js";
 import { addLocalScripture, loadLocalScriptures } from "./localScriptures.js";
@@ -661,7 +660,6 @@ function FilterBubble({ tag, label, selected, onToggle, disabled }) {
 
 // ── MAIN INTERACTIVE APP ──────────────────────────────────────────────────
 export default function FightingWordsInteractive() {
-  <Analytics/>
   const [selectedTags, setSelectedTags] = useState(new Set());
   const [selectedCustomTerms, setSelectedCustomTerms] = useState(new Set());
   const [cachedCustomTerms, setCachedCustomTerms] = useState(loadCachedTerms);
