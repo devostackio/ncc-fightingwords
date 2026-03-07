@@ -429,6 +429,7 @@ export default function App() {
   // if (isInteractive) return <FightingWordsInteractive />;
   // if (isFightingWords) return <FightingWords />;
   // return <AppCenter />;
+  
   return <FightingWordsInteractive />;
 }
 

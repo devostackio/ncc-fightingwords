@@ -661,7 +661,7 @@ function FilterBubble({ tag, label, selected, onToggle, disabled }) {
 
 // ── MAIN INTERACTIVE APP ──────────────────────────────────────────────────
 export default function FightingWordsInteractive() {
-  Analytics;
+  <Analytics/>
   const [selectedTags, setSelectedTags] = useState(new Set());
   const [selectedCustomTerms, setSelectedCustomTerms] = useState(new Set());
   const [cachedCustomTerms, setCachedCustomTerms] = useState(loadCachedTerms);
