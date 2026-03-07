@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import SCRIPTURES from "./scripture.json";
 import { SCRIPTURE_TAGS } from "./scriptureTags.js";
 import { addLocalScripture, loadLocalScriptures } from "./localScriptures.js";
+import { track } from "@vercel/analytics/react";
 
 const CACHE_KEY = "fighting-words-custom-terms";
 const MIN_TYPEAHEAD_CHARS = 2;
@@ -22,6 +23,7 @@ function loadCachedTerms() {
 function saveCachedTerms(list) {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify(list.slice(0, MAX_CACHED_TERMS)));
+    track("saved_cached_terms", { list: list.slice(0, MAX_CACHED_TERMS) });
   } catch (_) {}
 }
 
@@ -543,6 +545,7 @@ function TypeaheadSearch({
                   onAddTerm(item.value, item.type);
                 }
                 onChange("");
+                track("added_term", { term: item.value, type: item.type });
                 onOpenChange(false);
               }}
             >
@@ -629,7 +632,7 @@ function FilterBubble({ tag, label, selected, onToggle, disabled }) {
   return (
     <button
       type="button"
-      onClick={() => onToggle(tag)}
+      onClick={() => onToggle(tag) && track("filtered_by_tag", { tag })}
       disabled={disabled}
       aria-pressed={isSelected}
       aria-label={label}
@@ -1196,7 +1199,7 @@ export default function FightingWordsInteractive() {
             <div style={{ textAlign: "center", marginTop: "28px" }}>
               <button
                 type="button"
-                onClick={() => setShowResults(true)}
+                onClick={() => setShowResults(true) && track("show_matching_verses", { results: results.length })}
                 aria-label="Show matching verses"
                 style={{
                   minHeight: MIN_TOUCH_PX,
