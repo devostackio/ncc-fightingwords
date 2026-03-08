@@ -1,7 +1,9 @@
 import React from "react";
 import { Analytics } from "@vercel/analytics/react";
 import FightingWords from "./fighting-words.jsx";
+import FightingWordsV2 from "./fw-v2.jsx";
 import FightingWordsInteractive from "./fighting-words-interactive.jsx";
+import FightingWordsV3 from "./fw-v3.jsx";
 
 const APPS = [
   {
@@ -415,25 +417,28 @@ function AppCenter() {
   );
 }
 
-export default function App() {
-  // const path = window.location.pathname || "/app";
-  // const normalizedPath = path.toLowerCase();
-  // const isFightingWords =
-  //   normalizedPath === "/fighting-words" ||
-  //   normalizedPath.endsWith("/fighting-words") ||
-  //   normalizedPath.endsWith("/fighting-words/");
-  // const isInteractive =
-  //   normalizedPath === "/interactive" ||
-  //   normalizedPath.endsWith("/interactive") ||
-  //   normalizedPath.endsWith("/interactive/");
+function AppStart() {
+  return (
+    <>
+      <Analytics/>
+      <FightingWordsV3 />
+    </>
+  );
+}
 
-  // if (isInteractive) return <FightingWordsInteractive />;
-  // if (isFightingWords) return <FightingWords />;
-  // return <AppCenter />;
+export default function App() {
+  const path = window.location.pathname || "/";
+  const normalizedPath = path.toLowerCase();
+  const isOriginal =
+    normalizedPath === "/v1" ||
+    normalizedPath.endsWith("/v1");
+  const isV2 =
+    normalizedPath === "/v2" ||
+    normalizedPath.endsWith("/v2");
+
+  if (isOriginal) return <FightingWordsInteractive />;
+  if (isV2) return <FightingWordsV3 />;
+  return <AppStart />;
   
-  return <>
-  <Analytics/>
-  <FightingWordsInteractive />
-  </>;
 }
 
