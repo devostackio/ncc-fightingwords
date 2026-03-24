@@ -2,12 +2,21 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import SCRIPTURES from "./scripture.json";
 import { SCRIPTURE_TAGS } from "./scriptureTags.js";
 import { addLocalScripture, loadLocalScriptures } from "./localScriptures.js";
+import { parseReference } from "./parseReference.js";
 import { track } from "@vercel/analytics/react";
 
 const CACHE_KEY = "fighting-words-custom-terms";
 const MIN_TYPEAHEAD_CHARS = 2;
 const MAX_CACHED_TERMS = 4;
 const VISIBLE_BUBBLE_COUNT = 5;
+let dblLookupModulePromise = null;
+
+async function getDblLookupModule() {
+  if (!dblLookupModulePromise) {
+    dblLookupModulePromise = import("./dblScriptureLookup.js");
+  }
+  return dblLookupModulePromise;
+}
 
 function loadCachedTerms() {
   try {
@@ -857,7 +866,9 @@ export default function FightingWords() {
   const [cardWidth, setCardWidth] = useState(340);
   const [showSubmit, setShowSubmit] = useState(false);
   const [newRef, setNewRef] = useState("");
-  const [newText, setNewText] = useState("");
+  const [newRefSuggestions, setNewRefSuggestions] = useState([]);
+  const [newLookupText, setNewLookupText] = useState("");
+  const [isLookupLoading, setIsLookupLoading] = useState(false);
   const [newTagPick, setNewTagPick] = useState(SCRIPTURE_TAGS[0] || "hope");
   const [newTags, setNewTags] = useState([]);
   const [submitError, setSubmitError] = useState("");
@@ -873,6 +884,58 @@ export default function FightingWords() {
 
   const allScriptures = useMemo(() => [...SCRIPTURES, ...localScriptures], [localScriptures]);
   const scriptureWords = useMemo(() => buildScriptureWords(allScriptures), [allScriptures]);
+
+  useEffect(() => {
+    if (!showSubmit) return;
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const mod = await getDblLookupModule();
+        const next = mod.getReferenceSuggestions(newRef);
+        if (!cancelled) setNewRefSuggestions(Array.isArray(next) ? next : []);
+      } catch {
+        if (!cancelled) setNewRefSuggestions([]);
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [newRef, showSubmit]);
+
+  useEffect(() => {
+    if (!showSubmit) return;
+    let cancelled = false;
+    const run = async () => {
+      const reference = (newRef || "").trim();
+      if (!reference) {
+        setNewLookupText("");
+        setIsLookupLoading(false);
+        return;
+      }
+      const parsed = parseReference(reference);
+      if (!parsed.ok || parsed.type === "chapter") {
+        setNewLookupText("");
+        setIsLookupLoading(false);
+        return;
+      }
+      setIsLookupLoading(true);
+      try {
+        const mod = await getDblLookupModule();
+        const result = await mod.lookupScriptureText(reference);
+        if (cancelled) return;
+        setNewLookupText(result.ok ? result.text : "");
+      } catch {
+        if (cancelled) return;
+        setNewLookupText("");
+      }
+      setIsLookupLoading(false);
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [newRef, showSubmit]);
 
   useEffect(() => {
     const w = Math.min(340, window.innerWidth * 0.82);
@@ -1012,18 +1075,31 @@ export default function FightingWords() {
   };
 
   //TODO: Unify submit new verse and add new tag functionality to be a single component
-  const submitNewVerse = (e) => {
+  const submitNewVerse = async (e) => {
     e.preventDefault();
     setSubmitError("");
     setSubmitSuccess("");
 
     const reference = (newRef || "").trim();
-    const text = (newText || "").trim();
+    const parsed = parseReference(reference);
     const tags = (newTags || []).slice(0, 3);
 
     if (!reference) return setSubmitError("Please add a scripture reference.");
-    if (!text) return setSubmitError("Please add the verse text.");
+    if (!parsed.ok) return setSubmitError("Use a valid reference format like Psalm 23:1-3.");
+    if (parsed.type === "chapter") return setSubmitError("Select a verse or range (for example: Genesis 4:1-5).");
     if (tags.length === 0) return setSubmitError("Please choose at least 1 theme tag (up to 3).");
+
+    let text = "";
+    try {
+      const mod = await getDblLookupModule();
+      const lookup = await mod.lookupScriptureText(reference);
+      if (!lookup.ok || !lookup.text.trim()) {
+        return setSubmitError("Could not find that verse text in the DBL-USX source.");
+      }
+      text = lookup.text.trim();
+    } catch {
+      return setSubmitError("Scripture lookup failed. Please try again.");
+    }
 
     const res = addLocalScripture(
       { reference, text, tags, submittedBy: "" },
@@ -1040,7 +1116,6 @@ export default function FightingWords() {
 
     setLocalScriptures(res.next);
     setNewRef("");
-    setNewText("");
     setNewTags([]);
     setSubmitSuccess("Saved to this browser. It’s now searchable like the built-in verses.");
   };
@@ -1331,6 +1406,7 @@ export default function FightingWords() {
                   <input
                     value={newRef}
                     onChange={(e) => setNewRef(e.target.value)}
+                    list="scripture-reference-suggestions"
                     placeholder='e.g. "Psalm 23:1-3"'
                     style={{
                       width: "100%",
@@ -1346,15 +1422,19 @@ export default function FightingWords() {
                       fontSize: 14,
                     }}
                   />
+                  <datalist id="scripture-reference-suggestions">
+                    {(Array.isArray(newRefSuggestions) ? newRefSuggestions : []).map((ref) => (
+                      <option key={ref} value={ref} />
+                    ))}
+                  </datalist>
+                  <div style={{ color: "#ffffff66", fontSize: 12, marginTop: 8 }}>
+                    Type any DBL scripture reference. Book only shows chapters; chapter input shows verses.
+                  </div>
                 </div>
 
                 <div style={{ marginBottom: 12 }}>
-                  <FieldLabel>Verse text</FieldLabel>
-                  <textarea
-                    value={newText}
-                    onChange={(e) => setNewText(e.target.value)}
-                    placeholder="Paste or type the verse…"
-                    rows={4}
+                  <FieldLabel>Verse text (auto-filled)</FieldLabel>
+                  <div
                     style={{
                       width: "100%",
                       boxSizing: "border-box",
@@ -1362,13 +1442,17 @@ export default function FightingWords() {
                       borderRadius: 12,
                       border: "1px solid rgba(255,255,255,0.18)",
                       background: "rgba(0,0,0,0.18)",
-                      color: "#fff",
-                      outline: "none",
+                      color: lookedUpText ? "#fff" : "#ffffff88",
+                      minHeight: 92,
                       fontFamily: "'DM Sans', sans-serif",
                       fontSize: 14,
-                      resize: "vertical",
+                      lineHeight: 1.45,
                     }}
-                  />
+                  >
+                    {isLookupLoading
+                      ? "Looking up scripture text..."
+                      : newLookupText || "Verse text will appear here after selecting a valid verse or range."}
+                  </div>
                 </div>
 
                 <div style={{ marginBottom: 10 }}>

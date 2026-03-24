@@ -1,3 +1,4 @@
+import { parseReference } from "./parseReference";
 const LOCAL_SCRIPTURES_KEY = "fighting-words-local-scriptures-v1";
 
 function safeJsonParse(raw, fallback) {
@@ -37,40 +38,20 @@ function normalizeSpaces(s) {
   return (s || "").replace(/\s+/g, " ").trim();
 }
 
-function parseReference(ref) {
-  const cleaned = normalizeSpaces(ref);
-  const m = cleaned.match(
-    /^(.+?)\s+(\d+)\s*:\s*(\d+[a-zA-Z]?)(?:\s*-\s*(\d+[a-zA-Z]?))?\s*$/
-  );
-  if (!m) return { ok: false, raw: cleaned.toLowerCase() };
-
-  const book = normalizeSpaces(m[1]).toLowerCase();
-  const chapter = Number(m[2]);
-  const vs = m[3];
-  const ve = m[4] ?? m[3];
-  const verseStart = Number(String(vs).match(/\d+/)?.[0]);
-  const verseEnd = Number(String(ve).match(/\d+/)?.[0]);
-
-  if (!Number.isFinite(chapter) || !Number.isFinite(verseStart) || !Number.isFinite(verseEnd)) {
-    return { ok: false, raw: cleaned.toLowerCase() };
-  }
-
-  return {
-    ok: true,
-    book,
-    chapter,
-    verseStart: Math.min(verseStart, verseEnd),
-    verseEnd: Math.max(verseStart, verseEnd),
-  };
-}
-
 export function referencesOverlap(aRef, bRef) {
   const a = parseReference(aRef);
   const b = parseReference(bRef);
   if (!a.ok || !b.ok) {
     return normalizeSpaces(aRef).toLowerCase() === normalizeSpaces(bRef).toLowerCase();
   }
-  if (a.book !== b.book || a.chapter !== b.chapter) return false;
+  if (a.book !== b.book) return false;
+
+  // If either reference is chapter-level (e.g. "Psalm 23"), overlap is chapter span overlap.
+  if (a.type === "chapter" || b.type === "chapter") {
+    return a.chapterStart <= b.chapterEnd && b.chapterStart <= a.chapterEnd;
+  }
+
+  if (a.chapterStart !== b.chapterStart || a.chapterEnd !== b.chapterEnd) return false;
   return a.verseStart <= b.verseEnd && b.verseStart <= a.verseEnd;
 }
 
